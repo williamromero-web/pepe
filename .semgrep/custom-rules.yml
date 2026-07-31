@@ -36,3 +36,23 @@ rules:
     severity: ERROR
     languages:
       - javascript
+
+  - id: path-traversal-custom
+    patterns:
+      - pattern: fs.readFileSync(..., ...)
+      - pattern-inside: |
+          app.get('/api/files', ...)
+    message: "HIGH: Posible Path Traversal (CWE-22). Lectura de archivos sin sanitización de ruta."
+    severity: ERROR
+    languages: [javascript]
+
+  - id: missing-rate-limit-login
+    patterns:
+      - pattern-inside: |
+          app.post('/api/login', ...)
+      - pattern-not-inside: |
+          rateLimit(...)
+          ...
+    message: "MEDIUM: Endpoint de autenticación sin límite de tasa / Rate Limiting (CWE-307)."
+    severity: WARNING
+    languages: [javascript]
