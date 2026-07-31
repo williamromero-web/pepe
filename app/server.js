@@ -68,11 +68,15 @@ app.get('/api/users/:id', authMiddleware, (req, res) => {
     });
 });
 
-// V-04: XXE (CWE-611) - Parser XML con entidades externas habilitadas (noent: true)
+// V-04: XXE (CWE-611) - Parser XML vulnerable
+const { DOMParser } = require('xmldom');
+const xpath = require('xpath');
+
 app.post('/api/xml-upload', (req, res) => {
     try {
-        const xmlDoc = libxmljs.parseXmlString(req.body, { noent: true }); // noent activa entidades
-        const username = xmlDoc.get('//username')?.text() || 'Anonimo';
+        // Al usar DOMParser sin restricciones, las entidades externas se resuelven
+        const doc = new DOMParser().parseFromString(req.body, 'text/xml');
+        const username = xpath.select('string(//username)', doc) || 'Anonimo';
         res.send(`XML Procesado. Hola, ${username}`);
     } catch (e) {
         res.status(400).send("XML Inválido");
