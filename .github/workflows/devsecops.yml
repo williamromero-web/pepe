@@ -8,7 +8,7 @@ on:
 
 jobs:
   secrets-scanning:
-    name: Gitleaks Secrets Scan (Modo Estricto Completo)
+    name: Gitleaks Secrets Scan (Modo Estricto Manual)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
@@ -18,10 +18,11 @@ jobs:
 
       - name: Install and Run Gitleaks Manual
         run: |
+          # Descargamos el binario directamente para forzar el análisis de archivos
           wget https://github.com/gitleaks/gitleaks/releases/download/v8.18.1/gitleaks_8.18.1_linux_x64.tar.gz
           tar -xzf gitleaks_8.18.1_linux_x64.tar.gz
-          # "--no-git" fuerza a Gitleaks a escanear los archivos en texto plano sin importar la historia de git
-          ./gitleaks detect --no-git --source . -v
+          # --no-git fuerza la lectura de archivos físicos ignorando el historial de commits
+          ./gitleaks detect --no-git --source . -v 
 
   sast-semgrep:
     name: Semgrep SAST (Reglas Oficiales + Custom)
@@ -33,8 +34,8 @@ jobs:
       - name: Semgrep Scan
         run: |
           pip install semgrep
-          # "--config auto" trae el Top 10 de OWASP. "--config .semgrep/custom-rules.yml" trae tus reglas (Ley 1581, SQLi, etc).
-          semgrep scan --config auto --config .semgrep/custom-rules.yml --error
+          # Apuntamos ESPECÍFICAMENTE a la carpeta app/ para no mezclar con IaC
+          semgrep scan app/ --config auto --config .semgrep/custom-rules.yml --error
 
   sca-trivy:
     name: Trivy SCA & SBOM
@@ -43,13 +44,13 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Trivy Dependency Scanner (Filesystem)
+      - name: Trivy Dependency Scanner
         uses: aquasecurity/trivy-action@master
         with:
           scan-type: 'fs'
           scan-ref: 'app'
           exit-code: 1
-          severity: 'CRITICAL,HIGH' # Bloquea dependencias vulnerables
+          severity: 'CRITICAL,HIGH' 
 
       - name: Generar SBOM CycloneDX JSON
         uses: aquasecurity/trivy-action@master
@@ -72,7 +73,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
       
-      - name: Validar Dockerfile con Hadolint (Bloquea tags no pinneados)
+      - name: Validar Dockerfile con Hadolint (Bloquea :latest)
         uses: hadolint/hadolint-action@v3.1.0
         with:
           dockerfile: ./app/Dockerfile
@@ -81,7 +82,7 @@ jobs:
       - name: Build Docker Image
         run: docker build -t fleetsec-app:local ./app
         
-      - name: Scan Image with Trivy
+      - name: Scan Image with Trivy (Falla por usuario Root y CVEs de librerías base)
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: 'fleetsec-app:local'
@@ -99,7 +100,7 @@ jobs:
         uses: bridgecrewio/checkov-action@master
         with:
           directory: infrastructure/
-          soft_fail: false # False asegura que los hallazgos bloqueen el pipeline
+          soft_fail: false 
 
   dast-zap:
     name: DAST ZAP Automation
@@ -115,14 +116,12 @@ jobs:
         run: |
           docker build -t fleetsec-app:local ./app
           docker run -d -p 3000:3000 --name app fleetsec-app:local
-          # Damos tiempo a que el servidor levante correctamente
           sleep 10
           
       - name: Generar Bearer JWT de prueba
         run: |
           cd app
           npm install jsonwebtoken
-          # Generamos un token válido para el escáner firmándolo con la misma clave expuesta
           TOKEN=$(node -e "const jwt = require('jsonwebtoken'); console.log(jwt.sign({ id: 1, role: 'admin' }, 'super_secret_key', { algorithm: 'HS256' }));")
           echo "ZAP_JWT_TOKEN=$TOKEN" >> $GITHUB_ENV
           
@@ -132,7 +131,7 @@ jobs:
           target: 'app/openapi.yaml'
           format: openapi
           allow_issue_writing: true
-          fail_action: true # Bloquea el pipeline directamente si ZAP encuentra vulnerabilidades
+          fail_action: true 
         env:
           ZAP_AUTH_HEADER_VALUE: "Bearer ${{ env.ZAP_JWT_TOKEN }}"
           ZAP_AUTH_HEADER: "Authorization"
