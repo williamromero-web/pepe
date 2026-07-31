@@ -114,4 +114,4 @@ app.get('/api/files', (req, res) => {
     }
 });
 
-app.listen(3000, () => console.log("Servidor corriendo en el puerto 3000 con 10 vulnerabilidades listas para VAPT"));
+app.listen(3000, '0.0.0.0', () => console.log("Servidor escuchando en 0.0.0.0:3000 (Listo para ZAP)"));
