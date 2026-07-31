@@ -1,5 +1,4 @@
 {
-  
   "name": "app",
   "version": "1.0.0",
   "main": "server.js",
@@ -7,6 +6,7 @@
     "axios": "^1.7.9",
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2",
-    "sqlite3": "^5.1.7"
+    "sqlite3": "^5.1.7",
+    "libxmljs": "^1.0.11"
   }
 }
