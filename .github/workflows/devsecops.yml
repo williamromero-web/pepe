@@ -115,7 +115,8 @@ jobs:
       - name: Iniciar aplicación en staging local
         run: |
           docker build -t fleetsec-app:local ./app
-          docker run -d -p 3000:3000 --name app fleetsec-app:local
+          # Usamos --network host para que el contenedor exponga el puerto directamente en la máquina runner
+          docker run -d --network host --name app fleetsec-app:local
           sleep 10
           
       - name: Generar Bearer JWT de prueba
@@ -128,7 +129,7 @@ jobs:
       - name: OWASP ZAP API Scan (OpenAPI)
         uses: zaproxy/action-api-scan@v0.10.0
         with:
-          target: 'app/openapi.yaml'
+          target: 'http://localhost:3000/openapi.yaml' # ZAP Action internamente sabe cómo rutear esto si usamos network host antes
           format: openapi
           allow_issue_writing: true
           fail_action: true 
