@@ -162,44 +162,44 @@ jobs:
           # 1. GITLEAKS
           GITLEAKS_STATUS="${{ needs.secrets-scanning.result }}"
           if [ "$GITLEAKS_STATUS" = "success" ]; stream; then
-            echo "| **Gitleaks** | Secrets Scan | ✅ PASS | 0 secretos expuestos |" >> $GITHUB_STEP_SUMMARY
+            echo "| **Gitleaks** | Secrets Scan | PASS | 0 secretos expuestos |" >> $GITHUB_STEP_SUMMARY
           else
             # Intentar contar secretos desde el reporte JSON si existe
             COUNT=$(jq '. | length' ./all-reports/*/gitleaks-report.json 2>/dev/null || echo "5")
-            echo "| **Gitleaks** | Secrets Scan | ❌ FAIL | **$COUNT secreto(s) hardcodeado(s)** detectado(s) |" >> $GITHUB_STEP_SUMMARY
+            echo "| **Gitleaks** | Secrets Scan | FAIL | **$COUNT secreto(s) hardcodeado(s)** detectado(s) |" >> $GITHUB_STEP_SUMMARY
           fi
 
           # 2. SEMGREP (SAST)
           SEMGREP_STATUS="${{ needs.sast-semgrep.result }}"
           if [ "$SEMGREP_STATUS" = "success" ]; then
-            echo "| **Semgrep** | SAST (Código) | ✅ PASS | 0 vulnerabilidades en código |" >> $GITHUB_STEP_SUMMARY
+            echo "| **Semgrep** | SAST (Código) | PASS | 0 vulnerabilidades en código |" >> $GITHUB_STEP_SUMMARY
           else
             COUNT=$(jq '.results | length' ./all-reports/*/semgrep-report.json 2>/dev/null || echo "17")
-            echo "| **Semgrep** | SAST (Código) | ❌ FAIL | **$COUNT vulnerabilidad(es)** (SQLi, PII, JWT, XXE, Mass Assign.) |" >> $GITHUB_STEP_SUMMARY
+            echo "| **Semgrep** | SAST (Código) | FAIL | **$COUNT vulnerabilidad(es)** (SQLi, PII, JWT, XXE, Mass Assign.) |" >> $GITHUB_STEP_SUMMARY
           fi
 
           # 3. TRIVY CONTAINER
           TRIVY_STATUS="${{ needs.container-security.result }}"
           if [ "$TRIVY_STATUS" = "success" ]; then
-            echo "| **Hadolint / Trivy** | Container Security | ✅ PASS | Imagen y Dockerfile seguros |" >> $GITHUB_STEP_SUMMARY
+            echo "| **Hadolint / Trivy** | Container Security | PASS | Imagen y Dockerfile seguros |" >> $GITHUB_STEP_SUMMARY
           else
-            echo "| **Hadolint / Trivy** | Container Security | ❌ FAIL | **5 CVEs Críticos** (Librerías `tar`, `xmldom`) + Ejecución como Root |" >> $GITHUB_STEP_SUMMARY
+            echo "| **Hadolint / Trivy** | Container Security | FAIL | **5 CVEs Críticos** (Librerías `tar`, `xmldom`) + Ejecución como Root |" >> $GITHUB_STEP_SUMMARY
           fi
 
           # 4. CHECKOV (IaC)
           CHECKOV_STATUS="${{ needs.iac-checkov.result }}"
           if [ "$CHECKOV_STATUS" = "success" ]; then
-            echo "| **Checkov** | IaC (Terraform) | ✅ PASS | 81 Reglas Pasadas / 0 Fallos |" >> $GITHUB_STEP_SUMMARY
+            echo "| **Checkov** | IaC (Terraform) | PASS | 81 Reglas Pasadas / 0 Fallos |" >> $GITHUB_STEP_SUMMARY
           else
-            echo "| **Checkov** | IaC (Terraform) | ❌ FAIL | Malas configuraciones en Terraform / AWS |" >> $GITHUB_STEP_SUMMARY
+            echo "| **Checkov** | IaC (Terraform) | FAIL | Malas configuraciones en Terraform / AWS |" >> $GITHUB_STEP_SUMMARY
           fi
 
           # 5. OWASP ZAP (DAST)
           ZAP_STATUS="${{ needs.dast-zap.result }}"
           if [ "$ZAP_STATUS" = "success" ]; then
-            echo "| **OWASP ZAP** | DAST (Dynamic) | ✅ PASS | 0 alertas en endpoints expuestos |" >> $GITHUB_STEP_SUMMARY
+            echo "| **OWASP ZAP** | DAST (Dynamic) | PASS | 0 alertas en endpoints expuestos |" >> $GITHUB_STEP_SUMMARY
           else
-            echo "| **OWASP ZAP** | DAST (Dynamic) | ❌ FAIL | **10 Alertas Dinámicas** (SQLi activo, SSRF, Cabeceras HTTP) |" >> $GITHUB_STEP_SUMMARY
+            echo "| **OWASP ZAP** | DAST (Dynamic) | FAIL | **10 Alertas Dinámicas** (SQLi activo, SSRF, Cabeceras HTTP) |" >> $GITHUB_STEP_SUMMARY
           fi
 
           echo "" >> $GITHUB_STEP_SUMMARY
