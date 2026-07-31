@@ -13,11 +13,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 0 # Clona todo el historial para que Gitleaks no escanee solo el último commit
       - name: Gitleaks
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          # Fuerza a escanear los archivos actuales en el directorio por si los secretos no están en el historial git
+          args: detect --source . -v 
 
   sast-semgrep:
     name: Semgrep SAST
@@ -27,9 +30,8 @@ jobs:
       - name: Semgrep Scan
         run: |
           pip install semgrep
-          semgrep scan --config .semgrep/custom-rules.yml --error
-        env:
-          SEMGREP_RULES: .semgrep/custom-rules.yml
+          # Agregamos "--config auto" para incluir las reglas oficiales (Top 10 OWASP) junto a tus reglas custom
+          semgrep scan --config auto --config .semgrep/custom-rules.yml --error
 
   sca-trivy:
     name: Trivy SCA & SBOM
@@ -42,7 +44,7 @@ jobs:
           scan-type: 'fs'
           scan-ref: 'app'
           exit-code: 1
-          severity: 'CRITICAL,HIGH'
+          severity: 'CRITICAL,HIGH' # Bloquea altas y críticas
       - name: Generar SBOM CycloneDX JSON
         uses: aquasecurity/trivy-action@master
         with:
@@ -57,12 +59,22 @@ jobs:
           path: sbom-cyclonedx.json
 
   container-security:
-    name: Trivy Container Image
+    name: Trivy Container Image & Dockerfile
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      
+      - name: Scan Dockerfile (Validar Tag Pinneado)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'config'
+          scan-ref: './app' # Escanea el Dockerfile en busca de malas configuraciones (como no usar tags específicos)
+          exit-code: 1
+          severity: 'CRITICAL,HIGH'
+          
       - name: Build Docker Image
         run: docker build -t fleetsec-app:local ./app
+        
       - name: Scan Image with Trivy
         uses: aquasecurity/trivy-action@master
         with:
@@ -84,7 +96,7 @@ jobs:
   dast-zap:
     name: DAST ZAP Automation
     runs-on: ubuntu-latest
-    needs: container-security 
+    # ELIMINADO: needs: container-security. Ahora corre en paralelo para ganar velocidad y no ser skippeado si el contenedor falla.
     permissions:
       issues: write
       contents: read
