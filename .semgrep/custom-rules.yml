@@ -1,11 +1,15 @@
 rules:
   - id: express-sqli-custom
-    patterns:
-      - pattern-inside: |
-          $APP.post(...)
-      - pattern: |
-          $DB.get(..., <... $REQ.body.$VAR ...>, ...)
-    message: "CRITICAL: Posible inyección SQL detectada en el endpoint de Express usando variables directamente del body sin parametrizar."
+    mode: taint
+    pattern-sources:
+      - pattern: req.body
+      - pattern: req.query
+      - pattern: req.params
+    pattern-sinks:
+      - pattern: db.get($QUERY, ...)
+      - pattern: db.run($QUERY, ...)
+      - pattern: db.all($QUERY, ...)
+    message: "CRITICAL: Posible inyección SQL (CWE-89) detectada. Los datos de entrada del usuario llegan a la base de datos sin ser parametrizados."
     severity: ERROR
     languages:
       - javascript
@@ -16,8 +20,18 @@ rules:
       - pattern-not-inside: |
           jwt.verify(...)
           ...
-          jwt.decode(...)
-    message: "HIGH: Uso de jwt.decode() sin una verificación previa (jwt.verify). Esto permite ataques de alteración de token o alg:none."
+    message: "HIGH: Uso de jwt.decode() sin una verificación previa (CWE-345). Esto permite ataques de alteración de token o alg:none."
+    severity: ERROR
+    languages:
+      - javascript
+
+  - id: pii-logging-ley1581
+    patterns:
+      - pattern: console.log($MSG)
+      - metavariable-regex:
+          metavariable: $MSG
+          regex: "(?i)(cédula|cc|email|telefono|direccion|password)"
+    message: "HIGH: Registro de PII sensible en texto plano (CWE-359). Viola la Ley 1581 de protección de datos."
     severity: ERROR
     languages:
       - javascript

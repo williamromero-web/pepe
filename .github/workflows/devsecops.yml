@@ -13,14 +13,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Clona todo el historial para que Gitleaks no escanee solo el último commit
+          fetch-depth: 0
       - name: Gitleaks
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          # Fuerza a escanear los archivos actuales en el directorio por si los secretos no están en el historial git
-          args: detect --source . -v 
+          args: detect --source . -v
 
   sast-semgrep:
     name: Semgrep SAST
@@ -30,7 +29,6 @@ jobs:
       - name: Semgrep Scan
         run: |
           pip install semgrep
-          # Agregamos "--config auto" para incluir las reglas oficiales (Top 10 OWASP) junto a tus reglas custom
           semgrep scan --config auto --config .semgrep/custom-rules.yml --error
 
   sca-trivy:
@@ -44,7 +42,7 @@ jobs:
           scan-type: 'fs'
           scan-ref: 'app'
           exit-code: 1
-          severity: 'CRITICAL,HIGH' # Bloquea altas y críticas
+          severity: 'CRITICAL,HIGH'
       - name: Generar SBOM CycloneDX JSON
         uses: aquasecurity/trivy-action@master
         with:
@@ -59,18 +57,16 @@ jobs:
           path: sbom-cyclonedx.json
 
   container-security:
-    name: Trivy Container Image & Dockerfile
+    name: Container Security & IaC
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       
-      - name: Scan Dockerfile (Validar Tag Pinneado)
-        uses: aquasecurity/trivy-action@master
+      - name: Validar Dockerfile (Evitar tags móviles como :latest o :alpine)
+        uses: hadolint/hadolint-action@v3.1.0
         with:
-          scan-type: 'config'
-          scan-ref: './app' # Escanea el Dockerfile en busca de malas configuraciones (como no usar tags específicos)
-          exit-code: 1
-          severity: 'CRITICAL,HIGH'
+          dockerfile: ./app/Dockerfile
+          failure-threshold: error
           
       - name: Build Docker Image
         run: docker build -t fleetsec-app:local ./app
@@ -96,7 +92,6 @@ jobs:
   dast-zap:
     name: DAST ZAP Automation
     runs-on: ubuntu-latest
-    # ELIMINADO: needs: container-security. Ahora corre en paralelo para ganar velocidad y no ser skippeado si el contenedor falla.
     permissions:
       issues: write
       contents: read
