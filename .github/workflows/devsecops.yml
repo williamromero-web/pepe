@@ -136,3 +136,37 @@ jobs:
         env:
           ZAP_AUTH_HEADER_VALUE: "Bearer ${{ env.ZAP_JWT_TOKEN }}"
           ZAP_AUTH_HEADER: "Authorization"
+  security-summary:
+    name: DevSecOps Consolidated Report
+    runs-on: ubuntu-latest
+    needs: [secrets-scanning, sast-semgrep, sca-trivy, container-security, iac-checkov, dast-zap]
+    if: always() # Corre sin importar si los jobs anteriores pasaron o fallaron
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Download Artifacts
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          path: ./reports
+
+      - name: Generar Reporte Unificado Markdown ($GITHUB_STEP_SUMMARY)
+        run: |
+          echo "# DevSecOps Security Scan Summary" >> $GITHUB_STEP_SUMMARY
+          echo "Este reporte consolida los hallazgos de seguridad detectados en el pipeline." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "### Estado de los Quality Gates" >> $GITHUB_STEP_SUMMARY
+          echo "| Herramienta | Stage | Estado |" >> $GITHUB_STEP_SUMMARY
+          echo "| :--- | :--- | :---: |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Gitleaks** | Secret Scanning | ${{ needs.secrets-scanning.result == 'success' && '✅ PASS' || '❌ FAIL' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Semgrep** | SAST (Código) | ${{ needs.sast-semgrep.result == 'success' && '✅ PASS' || '❌ FAIL' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Trivy FS** | SCA (Dependencias) | ${{ needs.sca-trivy.result == 'success' && '✅ PASS' || '❌ FAIL' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Hadolint / Trivy** | Container Security | ${{ needs.container-security.result == 'success' && '✅ PASS' || '❌ FAIL' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Checkov** | IaC (Terraform) | ${{ needs.iac-checkov.result == 'success' && '✅ PASS' || '❌ FAIL' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **OWASP ZAP** | DAST (Staging) | ${{ needs.dast-zap.result == 'success' && '✅ PASS' || '❌ FAIL' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "### Resumen de Hallazgos Clave" >> $GITHUB_STEP_SUMMARY
+          echo "> **Instrucción para el desarrollador:** Si algún stage tiene estado **FAIL**, revisa la sección 'Security' de GitHub o descarga los artefactos de la ejecución para ver los vectores de ataque exactos y sus remediaciones." >> $GITHUB_STEP_SUMMARY
