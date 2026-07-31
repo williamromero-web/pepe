@@ -3,7 +3,7 @@ info:
   title: FleetSec API
   version: 1.0.0
 servers:
-  - url: http://172.17.0.1:3000
+  - url: http://localhost:3000
 paths:
   /api/login:
     post:
@@ -22,9 +22,10 @@ paths:
       responses:
         '200':
           description: OK
+          
   /api/proxy:
     get:
-      summary: Endpoint Proxy
+      summary: Endpoint Proxy (SSRF)
       security:
         - bearerAuth: []
       parameters:
@@ -36,9 +37,10 @@ paths:
       responses:
         '200':
           description: OK
+          
   /api/users/{id}:
     get:
-      summary: Obtener perfil
+      summary: Obtener perfil (IDOR / SQLi)
       security:
         - bearerAuth: []
       parameters:
@@ -50,6 +52,55 @@ paths:
       responses:
         '200':
           description: OK
+          
+  /api/xml-upload:
+    post:
+      summary: Subir XML (XXE)
+      requestBody:
+        required: true
+        content:
+          application/xml:
+            schema:
+              type: string
+      responses:
+        '200':
+          description: OK
+          
+  /api/users/update:
+    post:
+      summary: Actualizar usuario (Mass Assignment)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                email:
+                  type: string
+                role:
+                  type: string
+      responses:
+        '200':
+          description: OK
+
+  /api/files:
+    get:
+      summary: Leer archivos (Path Traversal)
+      parameters:
+        - name: file
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+
 components:
   securitySchemes:
     bearerAuth:
