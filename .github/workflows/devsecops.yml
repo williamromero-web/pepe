@@ -14,15 +14,14 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Trae todo el historial
+          fetch-depth: 0
 
-      - name: Gitleaks Full Directory Scan
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          # "--no-git" fuerza a Gitleaks a escanear los archivos actuales, no solo el último commit.
-          args: detect --no-git --source . -v 
+      - name: Install and Run Gitleaks Manual
+        run: |
+          wget https://github.com/gitleaks/gitleaks/releases/download/v8.18.1/gitleaks_8.18.1_linux_x64.tar.gz
+          tar -xzf gitleaks_8.18.1_linux_x64.tar.gz
+          # "--no-git" fuerza a Gitleaks a escanear los archivos en texto plano sin importar la historia de git
+          ./gitleaks detect --no-git --source . -v
 
   sast-semgrep:
     name: Semgrep SAST (Reglas Oficiales + Custom)
