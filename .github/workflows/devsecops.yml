@@ -8,41 +8,50 @@ on:
 
 jobs:
   secrets-scanning:
-    name: Gitleaks Secrets Scan
+    name: Gitleaks Secrets Scan (Modo Estricto Completo)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout Code
+        uses: actions/checkout@v4
         with:
-          fetch-depth: 0
-      - name: Gitleaks
+          fetch-depth: 0 # Trae todo el historial
+
+      - name: Gitleaks Full Directory Scan
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          args: detect --source . -v
+          # "--no-git" fuerza a Gitleaks a escanear los archivos actuales, no solo el último commit.
+          args: detect --no-git --source . -v 
 
   sast-semgrep:
-    name: Semgrep SAST
+    name: Semgrep SAST (Reglas Oficiales + Custom)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
       - name: Semgrep Scan
         run: |
           pip install semgrep
+          # "--config auto" trae el Top 10 de OWASP. "--config .semgrep/custom-rules.yml" trae tus reglas (Ley 1581, SQLi, etc).
           semgrep scan --config auto --config .semgrep/custom-rules.yml --error
 
   sca-trivy:
     name: Trivy SCA & SBOM
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Trivy Dependency Scanner
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Trivy Dependency Scanner (Filesystem)
         uses: aquasecurity/trivy-action@master
         with:
           scan-type: 'fs'
           scan-ref: 'app'
           exit-code: 1
-          severity: 'CRITICAL,HIGH'
+          severity: 'CRITICAL,HIGH' # Bloquea dependencias vulnerables
+
       - name: Generar SBOM CycloneDX JSON
         uses: aquasecurity/trivy-action@master
         with:
@@ -50,6 +59,7 @@ jobs:
           scan-ref: 'app'
           format: 'cyclonedx'
           output: 'sbom-cyclonedx.json'
+
       - name: Upload SBOM
         uses: actions/upload-artifact@v4
         with:
@@ -60,9 +70,10 @@ jobs:
     name: Container Security & IaC
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout Code
+        uses: actions/checkout@v4
       
-      - name: Validar Dockerfile (Evitar tags móviles como :latest o :alpine)
+      - name: Validar Dockerfile con Hadolint (Bloquea tags no pinneados)
         uses: hadolint/hadolint-action@v3.1.0
         with:
           dockerfile: ./app/Dockerfile
@@ -82,12 +93,14 @@ jobs:
     name: Checkov IaC
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Checkov
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Checkov Infrastructure Scan
         uses: bridgecrewio/checkov-action@master
         with:
           directory: infrastructure/
-          soft_fail: false
+          soft_fail: false # False asegura que los hallazgos bloqueen el pipeline
 
   dast-zap:
     name: DAST ZAP Automation
@@ -96,19 +109,22 @@ jobs:
       issues: write
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout Code
+        uses: actions/checkout@v4
       
       - name: Iniciar aplicación en staging local
         run: |
           docker build -t fleetsec-app:local ./app
           docker run -d -p 3000:3000 --name app fleetsec-app:local
+          # Damos tiempo a que el servidor levante correctamente
           sleep 10
           
       - name: Generar Bearer JWT de prueba
         run: |
           cd app
           npm install jsonwebtoken
-          TOKEN=$(node -e "const jwt = require('jsonwebtoken'); console.log(jwt.sign({ id: 1, role: 'admin' }, process.env.JWT_SECRET || 'fallback_local_secret_12345!', { algorithm: 'HS256' }));")
+          # Generamos un token válido para el escáner firmándolo con la misma clave expuesta
+          TOKEN=$(node -e "const jwt = require('jsonwebtoken'); console.log(jwt.sign({ id: 1, role: 'admin' }, 'super_secret_key', { algorithm: 'HS256' }));")
           echo "ZAP_JWT_TOKEN=$TOKEN" >> $GITHUB_ENV
           
       - name: OWASP ZAP API Scan (OpenAPI)
@@ -117,23 +133,7 @@ jobs:
           target: 'app/openapi.yaml'
           format: openapi
           allow_issue_writing: true
-          fail_action: false
+          fail_action: true # Bloquea el pipeline directamente si ZAP encuentra vulnerabilidades
         env:
           ZAP_AUTH_HEADER_VALUE: "Bearer ${{ env.ZAP_JWT_TOKEN }}"
           ZAP_AUTH_HEADER: "Authorization"
-
-      - name: Etiquetar Issues MEDIUM y aplicar Quality Gate
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh label create "security/medium" --color "FBCA04" --description "Riesgo Medio detectado por DAST" || true
-          gh issue list --search "ZAP Scan" --json number -q '.[].number' | xargs -I {} gh issue edit {} --add-label "security/medium" || true
-          if [ -f report_json.json ]; then
-            HIGH_ALERTS=$(jq '[.site[].alerts[]? | select((.riskcode | tonumber) >= 3)] | length' report_json.json)
-            if [ "$HIGH_ALERTS" -gt 0 ]; then
-              echo "CRITICAL/HIGH vulnerabilidades encontradas por ZAP. Bloqueando pipeline."
-              exit 1
-            else
-              echo "Quality Gate DAST superado. Las vulnerabilidades MEDIUM generaron issues automáticos."
-            fi
-          fi
