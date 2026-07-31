@@ -129,12 +129,10 @@ jobs:
       - name: OWASP ZAP API Scan (OpenAPI)
         uses: zaproxy/action-api-scan@v0.10.0
         with:
-          target: 'http://localhost:3000/openapi.yaml'
+          target: 'app/openapi.yaml' 
           format: openapi
           allow_issue_writing: true
           fail_action: true 
-          # Esta es la llave mágica que conecta a ZAP con tu servidor local
-          network_name: 'host' 
         env:
           ZAP_AUTH_HEADER_VALUE: "Bearer ${{ env.ZAP_JWT_TOKEN }}"
           ZAP_AUTH_HEADER: "Authorization"
